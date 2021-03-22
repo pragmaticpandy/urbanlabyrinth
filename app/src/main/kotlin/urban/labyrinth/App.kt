@@ -177,8 +177,39 @@ data class CardinalCorner(val cardinality: CornerCardinality, val corner: Corner
 /**
  * Shouldn't contain any street crossings. Just two corners on same block.
  */
-data class Segment(val start: CardinalCorner, val end: CardinalCorner)
+data class Segment(val start: CardinalCorner, val end: CardinalCorner) {
 
+    /**
+     * Given the start and end cardinal locations relative to the start and end corners, which
+     * cardinal direction is traveled?
+     */
+    val headings: Map<Pair<CornerCardinality, CornerCardinality>, String> = mapOf(
+        Pair(NORTHWEST, SOUTHWEST) to "north",
+        Pair(NORTHWEST, NORTHEAST) to "west",
+        Pair(NORTHEAST, SOUTHEAST) to "north",
+        Pair(NORTHEAST, NORTHWEST) to "east",
+        Pair(SOUTHEAST, SOUTHWEST) to "east",
+        Pair(SOUTHEAST, NORTHEAST) to "south",
+        Pair(SOUTHWEST, NORTHWEST) to "south",
+        Pair(SOUTHWEST, SOUTHEAST) to "west")
+
+    val street: Street
+        get() {
+            if (start.horizontalStreet == end.horizontalStreet) {
+                return start.horizontalStreet
+            } else if (start.verticalStreet == end.verticalStreet) {
+                return start.verticalStreet
+            } else {
+                throw Exception("Invalid segment created where neither street is shared between corners")
+            }
+        }
+
+    val heading: String
+        get() {
+            return headings.get(Pair(start.cardinality, end.cardinality))
+                    ?: throw Exception("Invalid segment—couldn't determine heading")
+        }
+}
 
 fun main() {
     if (!verticalStreets.contains(startingCorner.verticalStreet)) {
@@ -195,6 +226,7 @@ fun main() {
         val path = paths.removeLast()
         if (path.size >= minNumSegments && path.last().end == startingCorner) {
             println(path)
+            printInstructions(path)
             return
         }
 
@@ -202,4 +234,23 @@ fun main() {
             path.last().end.segmentsFrom.forEach { paths.add(path + it) }
         }
     }
+}
+
+fun printInstructions(path: List<Segment>) {
+    getInstructionLines(path).forEach { println(it) }
+}
+
+fun getInstructionLines(path: List<Segment>): List<String> {
+    val result: MutableList<String> = mutableListOf()
+    result += "Start by heading ${path.first().heading} on ${path.first().street.name}"
+
+    for (var i = 0; i < path.size - 1; i++) {
+        val segmentA = path[i]
+        val segmentB = path[i + 1]
+
+        // todo same cardinality on both segments means it was straight and we can skip
+
+
+    result += "Done."
+    return result
 }
