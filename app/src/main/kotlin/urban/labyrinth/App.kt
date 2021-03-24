@@ -317,11 +317,34 @@ fun main() {
     }
 
     Files.createDirectories(outputDir)
+    println("Max num segments: $maxNumSegments")
 
     val paths: ArrayDeque<List<Segment>> = ArrayDeque()
     startingCorner.segmentsFrom.forEach { paths.addLast(listOf(it)) }
+    var nextGeneration = 2
+    val numToConsiderEachGeneration = 10_000
     while (paths.size > 0) {
         val path = paths.removeLast()
+
+        if (path.size == nextGeneration) {
+            println("Starting generation $nextGeneration")
+            nextGeneration++
+
+            if (paths.size > numToConsiderEachGeneration) {
+                paths.sortWith(compareByDescending { score(it).first } )
+                println(
+                    "Current best/worst: ${score(paths.first()).first}/${score(paths.last()).first}")
+
+                // If there are too many in queue, remove lowest scoring.
+                while (paths.size > numToConsiderEachGeneration) {
+                    paths.removeLast()
+                }
+
+                println(
+                    "best/worst post-prune: ${score(paths.first()).first}/${score(paths.last()).first}")
+            }
+        }
+
         if (path.size >= minNumSegments && path.last().end == startingCorner) {
             scoreAndDump(path)
         }
@@ -330,16 +353,19 @@ fun main() {
             path.last().end.segmentsFrom.forEach {
 
                 // if it isn't a uturn, add it to the stack
-                if (it.end.corner != path.last().start.corner) paths.add(path + it)
+                if (it.end.corner != path.last().start.corner) paths.addFirst(path + it)
             }
         }
     }
+
+    println("high score: $highScore")
 }
 
 var highScore = 0
 
 fun scoreAndDump(path: List<Segment>) {
     val (score, instructions) = score(path)
+    if (score > highScore) println("new high score: $score")
     highScore = max(highScore, score)
     if (score >= highScore) {
         Files
@@ -347,8 +373,6 @@ fun scoreAndDump(path: List<Segment>) {
                 outputDir.resolve("$score-${UUID.randomUUID()}.txt"),
                 instructions + path.map { it.toString() })
     }
-
-    print("\rhigh score: $highScore")
 }
 
 fun score(path: List<Segment>): Pair<Int, List<String>> {
@@ -403,7 +427,6 @@ fun getInstructionLines(path: List<Segment>): Pair<List<String>, Int> {
                         LEFT -> "turn left"
                         RIGHT -> "turn right"
                         UTURN -> "head back the way you came"
-                        else -> throw Exception("turn wasn't recognized")
                     }}"
     }
 
