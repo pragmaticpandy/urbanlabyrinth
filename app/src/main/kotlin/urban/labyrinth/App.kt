@@ -124,7 +124,11 @@ data class Corner(val verticalStreet: Street, val horizontalStreet: Street) {
      */
     val segmentsFrom: Set<Segment>
         get() {
-            return segmentsFromByCorner.get(this) ?: run {
+            return segmentsFromByCorner.get(this) ?.let {
+                val result = it.toMutableList()
+                result.shuffle() // to get more random results
+                result.toSet()
+            } ?: run {
                 val result: MutableSet<Segment> = mutableSetOf()
                 horizontalStreet.streetToNorth?.let {
                     result
