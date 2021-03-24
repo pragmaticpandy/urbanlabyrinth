@@ -1,8 +1,10 @@
 package urban.labyrinth
 
 import urban.labyrinth.CornerCardinality.*
+import urban.labyrinth.CardinalDirection.*
+import urban.labyrinth.Turn.*
 
-// east to west
+// west to east
 val verticalStreets = listOf(Street("15th"), Street("16th"), Street("17th"), Street("18th"))
 
 // north to south
@@ -50,7 +52,9 @@ data class Street(val name: String) {
                     throw Exception("streetToEast called on street not in verticalStreets")
                 }
 
-                val result = if (indexOfStreet == 0) null else verticalStreets[indexOfStreet - 1]
+                val result = if (indexOfStreet + 1 == verticalStreets.size) null
+                                else verticalStreets[indexOfStreet + 1]
+
                 eastStreets.put(this, result)
                 result
             }
@@ -82,16 +86,28 @@ data class Street(val name: String) {
                     throw Exception("streetToWest called on street not in verticalStreets")
                 }
 
-                val result = if (indexOfStreet + 1 == verticalStreets.size) null
-                                else verticalStreets[indexOfStreet + 1]
-
+                val result = if (indexOfStreet == 0) null else verticalStreets[indexOfStreet - 1]
                 westStreets.put(this, result)
                 result
             }
         }
+
+    override fun toString(): String = name
 }
 
-enum class CornerCardinality { NORTHWEST, NORTHEAST, SOUTHEAST, SOUTHWEST }
+enum class CornerCardinality {
+    NORTHWEST, NORTHEAST, SOUTHEAST, SOUTHWEST;
+
+    override fun toString(): String = name.toLowerCase()
+}
+
+enum class CardinalDirection {
+    NORTH, SOUTH, EAST, WEST;
+
+    override fun toString(): String = name.toLowerCase()
+}
+
+enum class Turn { STRAIGHT, LEFT, RIGHT, UTURN }
 
 data class Corner(val verticalStreet: Street, val horizontalStreet: Street) {
 
@@ -172,6 +188,36 @@ data class CardinalCorner(val cardinality: CornerCardinality, val corner: Corner
     val segmentsFrom get() = corner.segmentsFrom
     val verticalStreet get() = corner.verticalStreet
     val horizontalStreet get() = corner.horizontalStreet
+
+    private val caddywampusCardinalities: Set<Set<CornerCardinality>> = setOf(
+        setOf(NORTHWEST, SOUTHEAST), setOf(NORTHEAST, SOUTHWEST))
+
+    private val verticalScreetCrossingCardinalities: Set<Set<CornerCardinality>> = setOf(
+        setOf(NORTHWEST, NORTHEAST), setOf(SOUTHWEST, SOUTHEAST))
+
+    /**
+     * For two cardinal corners at same corner. Either "cross both streets", "don't cross", or
+     * "cross $streetName"
+     */
+    fun getCrossText(other: CardinalCorner): String {
+        if (corner != other.corner) {
+            throw Exception("getCrossText shouldn't have been called for different corners.")
+        }
+
+        if (cardinality == other.cardinality) {
+            return "don't cross"
+        }
+
+        if (caddywampusCardinalities.contains(setOf(cardinality, other.cardinality))) {
+            return "cross both streets"
+        }
+
+        if (verticalScreetCrossingCardinalities.contains(setOf(cardinality, other.cardinality))) {
+            return "cross ${corner.verticalStreet}"
+        }
+
+        return "cross ${corner.horizontalStreet}"
+    }
 }
 
 /**
@@ -183,16 +229,40 @@ data class Segment(val start: CardinalCorner, val end: CardinalCorner) {
      * Given the start and end cardinal locations relative to the start and end corners, which
      * cardinal direction is traveled?
      */
-    val headings: Map<Pair<CornerCardinality, CornerCardinality>, String> = mapOf(
-        Pair(NORTHWEST, SOUTHWEST) to "north",
-        Pair(NORTHWEST, NORTHEAST) to "west",
-        Pair(NORTHEAST, SOUTHEAST) to "north",
-        Pair(NORTHEAST, NORTHWEST) to "east",
-        Pair(SOUTHEAST, SOUTHWEST) to "east",
-        Pair(SOUTHEAST, NORTHEAST) to "south",
-        Pair(SOUTHWEST, NORTHWEST) to "south",
-        Pair(SOUTHWEST, SOUTHEAST) to "west")
+    private val directions: Map<Pair<CornerCardinality, CornerCardinality>, CardinalDirection> = mapOf(
+        Pair(NORTHWEST, SOUTHWEST) to NORTH,
+        Pair(NORTHWEST, NORTHEAST) to WEST,
+        Pair(NORTHEAST, SOUTHEAST) to NORTH,
+        Pair(NORTHEAST, NORTHWEST) to EAST,
+        Pair(SOUTHEAST, SOUTHWEST) to EAST,
+        Pair(SOUTHEAST, NORTHEAST) to SOUTH,
+        Pair(SOUTHWEST, NORTHWEST) to SOUTH,
+        Pair(SOUTHWEST, SOUTHEAST) to WEST)
 
+    /**
+     * What turn did you just make given a sequence of cardinal directions?
+     */
+    private val turns: Map<Pair<CardinalDirection, CardinalDirection>, Turn> = mapOf(
+        Pair(NORTH, NORTH) to STRAIGHT,
+        Pair(NORTH, SOUTH) to UTURN,
+        Pair(NORTH, EAST) to RIGHT,
+        Pair(NORTH, WEST) to LEFT,
+        Pair(SOUTH, NORTH) to UTURN,
+        Pair(SOUTH, SOUTH) to STRAIGHT,
+        Pair(SOUTH, EAST) to LEFT,
+        Pair(SOUTH, WEST) to RIGHT,
+        Pair(EAST, NORTH) to LEFT,
+        Pair(EAST, SOUTH) to RIGHT,
+        Pair(EAST, EAST) to STRAIGHT,
+        Pair(EAST, WEST) to UTURN,
+        Pair(WEST, NORTH) to RIGHT,
+        Pair(WEST, SOUTH) to LEFT,
+        Pair(WEST, EAST) to UTURN,
+        Pair(WEST, WEST) to STRAIGHT)
+
+    /**
+     * Street this segment follows
+     */
     val street: Street
         get() {
             if (start.horizontalStreet == end.horizontalStreet) {
@@ -204,11 +274,25 @@ data class Segment(val start: CardinalCorner, val end: CardinalCorner) {
             }
         }
 
-    val heading: String
+    /**
+     * Cross street this segment ends at. I.e. at the ending corner, the street that wasn't walked
+     * along.
+     */
+    val endingStreet: Street
         get() {
-            return headings.get(Pair(start.cardinality, end.cardinality))
+            return if (end.horizontalStreet == street) end.verticalStreet else end.horizontalStreet
+        }
+
+    val direction: CardinalDirection
+        get() {
+            return directions.get(Pair(start.cardinality, end.cardinality))
                     ?: throw Exception("Invalid segment—couldn't determine heading")
         }
+
+    fun getTurn(segment: Segment): Turn {
+        return turns.get(Pair(direction, segment.direction))
+                ?: throw Exception("Invalid segment—couldn't determine turn")
+    }
 }
 
 fun main() {
@@ -225,7 +309,7 @@ fun main() {
     while (paths.size > 0) {
         val path = paths.removeLast()
         if (path.size >= minNumSegments && path.last().end == startingCorner) {
-            println(path)
+            path.forEach { println(it) }
             printInstructions(path)
             return
         }
@@ -241,15 +325,37 @@ fun printInstructions(path: List<Segment>) {
 }
 
 fun getInstructionLines(path: List<Segment>): List<String> {
-    val result: MutableList<String> = mutableListOf()
-    result += "Start by heading ${path.first().heading} on ${path.first().street.name}"
+    var result: List<String> = listOf()
+    result +=
+        """
+        Start at the ${path.first().start.cardinality} corner of ${path.first().start.verticalStreet}
+        and ${path.first().start.horizontalStreet} and head ${path.first().direction} on
+        ${path.first().street.name}
+        """.trimIndent().replace('\n', ' ')
 
-    for (var i = 0; i < path.size - 1; i++) {
+    for (i in 0..(path.size - 2)) {
         val segmentA = path[i]
         val segmentB = path[i + 1]
 
-        // todo same cardinality on both segments means it was straight and we can skip
+        /**
+         * Same cardinality on both segments means it was straight with a single straight cross, so
+         * we can skip giving an instruction
+         */
+        if (segmentA.start.cardinality == segmentB.start.cardinality
+            && segmentA.end.cardinality == segmentB.end.cardinality) {
 
+            continue;
+        }
+
+        result += "At ${segmentA.endingStreet}, ${segmentA.end.getCrossText(segmentB.start)} and ${
+                    when (segmentA.getTurn(segmentB)) {
+                        STRAIGHT -> "continue straight"
+                        LEFT -> "turn left"
+                        RIGHT -> "turn right"
+                        UTURN -> "head back the way you came"
+                        else -> throw Exception("turn wasn't recognized")
+                    }}"
+    }
 
     result += "Done."
     return result
