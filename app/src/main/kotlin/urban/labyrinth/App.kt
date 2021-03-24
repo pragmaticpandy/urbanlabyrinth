@@ -207,24 +207,24 @@ data class CardinalCorner(val cardinality: CornerCardinality, val corner: Corner
      * For two cardinal corners at same corner. Either "cross both streets", "don't cross", or
      * "cross $streetName"
      */
-    fun getCrossText(other: CardinalCorner): String {
+    fun getCrossText(other: CardinalCorner): Pair<String, Int> {
         if (corner != other.corner) {
             throw Exception("getCrossText shouldn't have been called for different corners.")
         }
 
         if (cardinality == other.cardinality) {
-            return "don't cross"
+            return "don't cross" to 0
         }
 
         if (caddywampusCardinalities.contains(setOf(cardinality, other.cardinality))) {
-            return "cross both streets"
+            return "cross both streets" to 2
         }
 
         if (verticalScreetCrossingCardinalities.contains(setOf(cardinality, other.cardinality))) {
-            return "cross ${corner.verticalStreet}"
+            return "cross ${corner.verticalStreet}" to 1
         }
 
-        return "cross ${corner.horizontalStreet}"
+        return "cross ${corner.horizontalStreet}" to 1
     }
 }
 
@@ -360,9 +360,9 @@ fun score(path: List<Segment>): Pair<Int, List<String>> {
     // -9 for each re-used segment
     score -= (path.size - numUniqueSegments) * 9
 
-    // -1 for each instruction
-    val instructions = getInstructionLines(path)
-    score -= instructions.size
+    // -1 for each street cross
+    val (instructions, numCrosses) = getInstructionLines(path)
+    score -= numCrosses
 
     // todo uturns
 
@@ -370,8 +370,9 @@ fun score(path: List<Segment>): Pair<Int, List<String>> {
     return Pair(score, instructions)
 }
 
-fun getInstructionLines(path: List<Segment>): List<String> {
+fun getInstructionLines(path: List<Segment>): Pair<List<String>, Int> {
     var result: List<String> = listOf()
+    var totalNumCrosses = 0
     result +=
         """
         Start at the ${path.first().start.cardinality} corner of ${path.first().start.verticalStreet}
@@ -393,7 +394,10 @@ fun getInstructionLines(path: List<Segment>): List<String> {
             continue;
         }
 
-        result += "At ${segmentA.endingStreet}, ${segmentA.end.getCrossText(segmentB.start)} and ${
+        val (crossText, numCrosses) = segmentA.end.getCrossText(segmentB.start)
+        totalNumCrosses += numCrosses
+
+        result += "At ${segmentA.endingStreet}, $crossText and ${
                     when (segmentA.getTurn(segmentB)) {
                         STRAIGHT -> "continue straight"
                         LEFT -> "turn left"
@@ -404,5 +408,5 @@ fun getInstructionLines(path: List<Segment>): List<String> {
     }
 
     result += "Done."
-    return result
+    return result to totalNumCrosses
 }
