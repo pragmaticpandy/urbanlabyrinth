@@ -1,5 +1,9 @@
 package urban.labyrinth
 
+import kotlin.math.max
+import java.util.UUID
+import java.nio.file.Files
+import java.nio.file.Paths
 import urban.labyrinth.CornerCardinality.*
 import urban.labyrinth.CardinalDirection.*
 import urban.labyrinth.Turn.*
@@ -260,6 +264,8 @@ data class Segment(val start: CardinalCorner, val end: CardinalCorner) {
         Pair(WEST, EAST) to UTURN,
         Pair(WEST, WEST) to STRAIGHT)
 
+    val directionless: Set<CardinalCorner> get() = setOf(start, end)
+
     /**
      * Street this segment follows
      */
@@ -295,6 +301,8 @@ data class Segment(val start: CardinalCorner, val end: CardinalCorner) {
     }
 }
 
+val outputDir = Paths.get(System.getProperty("user.dir")).resolve("output")
+
 fun main() {
     if (!verticalStreets.contains(startingCorner.verticalStreet)) {
         throw Exception("Starting vertical street wasn't in list.")
@@ -304,24 +312,58 @@ fun main() {
         throw Exception("Starting horizontal street wasn't defined.")
     }
 
+    Files.createDirectories(outputDir)
+
     val paths: ArrayDeque<List<Segment>> = ArrayDeque()
     startingCorner.segmentsFrom.forEach { paths.addLast(listOf(it)) }
     while (paths.size > 0) {
         val path = paths.removeLast()
         if (path.size >= minNumSegments && path.last().end == startingCorner) {
-            path.forEach { println(it) }
-            printInstructions(path)
-            return
+            scoreAndDump(path)
         }
 
         if (path.size < maxNumSegments) {
-            path.last().end.segmentsFrom.forEach { paths.add(path + it) }
+            path.last().end.segmentsFrom.forEach {
+
+                // if it isn't a uturn, add it to the stack
+                if (it.end.corner != path.last().start.corner) paths.add(path + it)
+            }
         }
     }
 }
 
-fun printInstructions(path: List<Segment>) {
-    getInstructionLines(path).forEach { println(it) }
+var highScore = 0
+
+fun scoreAndDump(path: List<Segment>) {
+    val (score, instructions) = score(path)
+    highScore = max(highScore, score)
+    if (score >= highScore) {
+        Files
+            .write(
+                outputDir.resolve("$score-${UUID.randomUUID()}.txt"),
+                instructions + path.map { it.toString() })
+    }
+
+    print("\rhigh score: $highScore")
+}
+
+fun score(path: List<Segment>): Pair<Int, List<String>> {
+
+    // 10 points for each unique segment
+    val numUniqueSegments = path.map { it.directionless }.toSet().size
+    var score = numUniqueSegments * 10
+
+    // -9 for each re-used segment
+    score -= (path.size - numUniqueSegments) * 9
+
+    // -1 for each instruction
+    val instructions = getInstructionLines(path)
+    score -= instructions.size
+
+    // todo uturns
+
+
+    return Pair(score, instructions)
 }
 
 fun getInstructionLines(path: List<Segment>): List<String> {
