@@ -350,11 +350,7 @@ fun main() {
         }
 
         if (path.size < maxNumSegments) {
-            path.last().end.segmentsFrom.forEach {
-
-                // if it isn't a uturn, add it to the stack
-                if (it.end.corner != path.last().start.corner) paths.addFirst(path + it)
-            }
+            path.last().end.segmentsFrom.forEach { paths.addFirst(path + it) }
         }
     }
 
@@ -388,8 +384,8 @@ fun score(path: List<Segment>): Pair<Int, List<String>> {
     val (instructions, numCrosses) = getInstructionLines(path)
     score -= numCrosses
 
-    // todo uturns
-
+    // -27 for uturns. idea is that a uturn is worth it if you get four more segments out of it
+    for (i in 0..(path.size - 2)) if (path[i].getTurn(path[i + 1]) == UTURN) score -= 27
 
     return Pair(score, instructions)
 }
