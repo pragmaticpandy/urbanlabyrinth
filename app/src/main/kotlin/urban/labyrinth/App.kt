@@ -364,10 +364,7 @@ fun scoreAndDump(path: List<Segment>) {
     if (score > highScore) println("new high score: $score")
     highScore = max(highScore, score)
     if (score >= highScore) {
-        Files
-            .write(
-                outputDir.resolve("$score-${UUID.randomUUID()}.txt"),
-                instructions + path.map { it.toString() })
+        Files.write(outputDir.resolve("$score-${UUID.randomUUID()}.txt"), instructions)
     }
 }
 
