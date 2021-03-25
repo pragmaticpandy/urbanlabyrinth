@@ -16,6 +16,18 @@ val horizontalStreets = listOf(Street("Denny"), Street("Howell"), Street("Olive"
 
 val startingCorner = CardinalCorner(SOUTHEAST, Corner(Street("17th"), Street("Howell")))
 
+/**
+ * The main method's search is an iterative BFS where the queue is pruned after each enqueued path
+ * has been lengthened by one. If there are more than this many paths enqueued, they will be scored,
+ * and the lowest-scoring paths removed until the queue size decreases to this number.
+ *
+ * At 10,000, a 4x3 grid took about 4 minutes.
+ * At 1,000, the same grid took about 30 seconds.
+ * At 100, the same grid took 4 seconds, and still consistently achieved the high score.
+ * At 10, the same grid took less than a second, and still consistently achieved the high score.
+ */
+val numToConsiderEachGeneration = 100
+
 val numVerticalSegments = verticalStreets.size * 2 * (horizontalStreets.size - 1)
 val numHorizontalSegments = horizontalStreets.size * 2 * (verticalStreets.size - 1)
 val numSegments = numVerticalSegments + numHorizontalSegments
@@ -322,7 +334,6 @@ fun main() {
     val paths: ArrayDeque<List<Segment>> = ArrayDeque()
     startingCorner.segmentsFrom.forEach { paths.addLast(listOf(it)) }
     var nextGeneration = 2
-    val numToConsiderEachGeneration = 10_000
     while (paths.size > 0) {
         val path = paths.removeLast()
 
