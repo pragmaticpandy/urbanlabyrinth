@@ -9,31 +9,96 @@ import urban.labyrinth.CardinalDirection.*
 import urban.labyrinth.Turn.*
 
 // west to east
-val verticalStreets = listOf(Street("15th"), Street("16th"), Street("17th"), Street("18th"))
+val verticalStreets = listOf(Street("15th"), Street("16th"), Street("17th"), Street("18th"), Street("19th"))
 
 // north to south
-val horizontalStreets = listOf(Street("Denny"), Street("Howell"), Street("Olive"))
+val horizontalStreets = listOf(Street("John"), Street("Denny"), Street("Howell"), Street("Olive"), Street("Pine"))
 
-val startingCorner = CardinalCorner(SOUTHEAST, Corner(Street("17th"), Street("Howell")))
+val startingCorner = Corner(Street("17th"), Street("Howell"))
+
+val excludedSegments = setOf(
+    setOf(
+        CardinalCorner(SOUTHEAST, Corner(Street("15th"), Street("Pine"))),
+        CardinalCorner(SOUTHWEST, Corner(Street("16th"), Street("Pine")))),
+    setOf(
+        CardinalCorner(NORTHEAST, Corner(Street("16th"), Street("Pine"))),
+        CardinalCorner(NORTHWEST, Corner(Street("17th"), Street("Pine")))),
+    setOf(
+        CardinalCorner(SOUTHEAST, Corner(Street("16th"), Street("Pine"))),
+        CardinalCorner(SOUTHWEST, Corner(Street("17th"), Street("Pine")))),
+    setOf(
+        CardinalCorner(SOUTHWEST, Corner(Street("17th"), Street("Olive"))),
+        CardinalCorner(NORTHWEST, Corner(Street("17th"), Street("Pine")))),
+    setOf(
+        CardinalCorner(SOUTHEAST, Corner(Street("17th"), Street("Olive"))),
+        CardinalCorner(NORTHEAST, Corner(Street("17th"), Street("Pine")))),
+    setOf(
+        CardinalCorner(SOUTHWEST, Corner(Street("18th"), Street("Olive"))),
+        CardinalCorner(NORTHWEST, Corner(Street("18th"), Street("Pine")))),
+    setOf(
+        CardinalCorner(SOUTHEAST, Corner(Street("18th"), Street("Olive"))),
+        CardinalCorner(NORTHEAST, Corner(Street("18th"), Street("Pine")))),
+    setOf(
+        CardinalCorner(NORTHEAST, Corner(Street("18th"), Street("Olive"))),
+        CardinalCorner(NORTHWEST, Corner(Street("19th"), Street("Olive")))),
+    setOf(
+        CardinalCorner(SOUTHEAST, Corner(Street("18th"), Street("Olive"))),
+        CardinalCorner(SOUTHWEST, Corner(Street("19th"), Street("Olive")))),
+    setOf(
+        CardinalCorner(SOUTHWEST, Corner(Street("19th"), Street("Howell"))),
+        CardinalCorner(NORTHWEST, Corner(Street("19th"), Street("Olive")))),
+    setOf(
+        CardinalCorner(SOUTHEAST, Corner(Street("19th"), Street("Howell"))),
+        CardinalCorner(NORTHEAST, Corner(Street("19th"), Street("Olive")))),
+    setOf(
+        CardinalCorner(NORTHEAST, Corner(Street("15th"), Street("John"))),
+        CardinalCorner(NORTHWEST, Corner(Street("16th"), Street("John")))),
+    setOf(
+        CardinalCorner(SOUTHEAST, Corner(Street("15th"), Street("John"))),
+        CardinalCorner(SOUTHWEST, Corner(Street("16th"), Street("John")))))
+
+/**
+ * This can be different from excludedSegments.size because the excluded segments can isolate a
+ * larger section of the graph by using a border. This needs to be accurate to set the min and max
+ * valid path lengths.
+ *
+ * TODO just do a BFS and count the segments so this doesn't have to be manually set
+ */
+val excludedSegmentsCount = 19
 
 /**
  * The main method's search is an iterative BFS where the queue is pruned after each enqueued path
  * has been lengthened by one. If there are more than this many paths enqueued, they will be scored,
  * and the lowest-scoring paths removed until the queue size decreases to this number.
  *
+ * This is the only available quality vs runtime latency slider. A higher number will take longer
+ * but may yield better results, while a lower number will run faster, but may yield worse results.
+ *
  * At 10,000, a 4x3 grid took about 4 minutes.
  * At 1,000, the same grid took about 30 seconds.
  * At 100, the same grid took 4 seconds, and still consistently achieved the high score.
  * At 10, the same grid took less than a second, and still consistently achieved the high score.
+ *
+ * AT 10,000 a 5x5 grid with exclusions took 11 minutes.
+ * At 1,000, a 5x5 grid with exclusions took 90 secounds, but didn't always find the best path.
+ * At 100, a 5x5 grid with exclusions took 12 seconds, but consistently missed the best path.
  */
-val numToConsiderEachGeneration = 100
+val numToConsiderEachGeneration = 1_000
+
+/**
+ * If there are x unique segments, x +/- numSegmentsTolerance are the allowed path lengths.
+ */
+val numSegmentsTolerance = 5
+
+/*
+ * End of the things that are easy to tweak.
+ */
 
 val numVerticalSegments = verticalStreets.size * 2 * (horizontalStreets.size - 1)
 val numHorizontalSegments = horizontalStreets.size * 2 * (verticalStreets.size - 1)
-val numSegments = numVerticalSegments + numHorizontalSegments
-val numSegmentsTolerance = 5
-val maxNumSegments = numSegments + numSegmentsTolerance
-val minNumSegments = numSegments - numSegmentsTolerance
+val numUniqueSegments = numVerticalSegments + numHorizontalSegments - excludedSegmentsCount
+val maxNumSegments = numUniqueSegments + numSegmentsTolerance
+val minNumSegments = numUniqueSegments - numSegmentsTolerance
 
 data class Street(val name: String) {
 
@@ -198,8 +263,9 @@ data class Corner(val verticalStreet: Street, val horizontalStreet: Street) {
                                 CardinalCorner(NORTHEAST, Corner(it, horizontalStreet))))
                 }
 
-                segmentsFromByCorner.put(this, result)
-                result
+                val finalResult = result.filter{ !excludedSegments.contains(it.directionless) }.toSet()
+                segmentsFromByCorner.put(this, finalResult)
+                finalResult
             }
         }
 }
@@ -328,6 +394,10 @@ fun main() {
         throw Exception("Starting horizontal street wasn't defined.")
     }
 
+    if (excludedSegmentsCount < excludedSegments.size) {
+        throw Exception("excludedSegmentsCount failed sanity check—it should be at least as big as the number of excluded segments")
+    }
+
     Files.createDirectories(outputDir)
     println("Max num segments: $maxNumSegments")
 
@@ -335,9 +405,8 @@ fun main() {
     startingCorner.segmentsFrom.forEach { paths.addLast(listOf(it)) }
     var nextGeneration = 2
     while (paths.size > 0) {
-        val path = paths.removeLast()
 
-        if (path.size == nextGeneration) {
+        if (paths.last().size == nextGeneration) {
             println("Starting generation $nextGeneration")
             nextGeneration++
 
@@ -356,7 +425,9 @@ fun main() {
             }
         }
 
-        if (path.size >= minNumSegments && path.last().end == startingCorner) {
+        val path = paths.removeLast()
+
+        if (path.size >= minNumSegments && path.last().end.corner == startingCorner) {
             scoreAndDump(path)
         }
 
