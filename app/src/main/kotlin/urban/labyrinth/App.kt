@@ -16,6 +16,10 @@ val horizontalStreets = listOf(Street("John"), Street("Denny"), Street("Howell")
 
 val startingCorner = Corner(Street("17th"), Street("Howell"))
 
+/**
+ * All must be valid—i.e. the cardinality must be correct and not involve any street crossings.
+ * Otherwise results are non-deterministic.
+ */
 val excludedSegments = setOf(
     setOf(
         CardinalCorner(SOUTHEAST, Corner(Street("15th"), Street("Pine"))),
