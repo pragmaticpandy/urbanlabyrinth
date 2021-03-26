@@ -82,7 +82,7 @@ At Howell, don't cross and turn right
 Done.
 ```
 
-todo image
+![](https://github.com/pragmaticpandy/urbanlabyrinth/raw/main/documentation/readme-example-map.png)
 
 ### Scoring
 
