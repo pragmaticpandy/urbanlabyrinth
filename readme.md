@@ -9,7 +9,7 @@ This past weekend I was feeling trapped indoors and unable to escape. The inters
   [butterfly keyboard](https://www.macrumors.com/guide/butterfly-keyboard-vs-scissor-keyboard/),
   with multiple non-deterministic keys, making the external keyboard at my home "office" desk
   mandatory for actually getting things done,
-* and, oh yeah, a fucking pandemic,
+* and, oh yeah, a frakking pandemic,
 
 yeah, had me feeling *rather* trapped.
 
